@@ -7,7 +7,7 @@
 #include <avr/sleep.h>
 #include "led.h"
 
-volatile uint8_t sleeps=0, upside_down_count=0, dice_number=0, inoffical_dice_number=1;
+volatile uint8_t sleeps=0, upside_down_count=0, dice_number=0, inoffical_dice_number=1, bright=3, brightness_select_count=0;
 volatile uint8_t toggle_count_changed=0, toggle_count_unchanged=0;
 volatile uint32_t old_toggle_count=0, toggle_count=0;
 
@@ -40,13 +40,27 @@ void sleep(void) {
 
   GICR &= ~(1 << INT0); //Disable interrupts
   cli();
+  bright=3; //select brightness after power on
+  brightness_select_count=0;
   set_number(7);
-  _delay_ms(500);
-  configure_interrupt();
+  _delay_ms(2000);
+  configure_interrupt(); //Configure interrupts for normal program
 }
 
 
 ISR (TIMER1_COMPA_vect) {
+  if (bright>2)
+    if (brightness_select_count==3) {
+      if (bright==3) { //Dark select
+        bright=4;
+        LED_BRIGHT
+      } else if (bright==4) { //Bright select
+        bright=3;
+        LED_DIMMED
+      }
+      brightness_select_count=0;
+    } else ++brightness_select_count;
+
   if(PIND&(1<<2)) { //When dice is upside down for 5 seconds go to sleep mode
     if (upside_down_count==10) sleep();
     else if (upside_down_count==9) { //Goodbye..
@@ -70,7 +84,7 @@ ISR (TIMER1_COMPA_vect) {
       set_number(7);
     }
   } else {
-    LED_DIMMED
+    if (bright==1) { LED_DIMMED; }
     set_number(dice_number);
     toggle_count_changed=0;
     toggle_count_unchanged=0;
@@ -82,6 +96,10 @@ ISR (TIMER1_COMPA_vect) {
 
 ISR(INT0_vect) {
   if (!sleeps) {
+    if (bright>2) { //Save brightness if not set
+      bright-=2;
+    }
+
     if (toggle_count<4294967294U) ++toggle_count; //filter if dice was hit or rolled
     else {
       toggle_count=0;
@@ -90,13 +108,13 @@ ISR(INT0_vect) {
 }
 
 int main(void) {
-  DDRD &=~ (1<<2); //Input vibration and rotation sensor
+  //DDRD &=~ (1<<2); //Input vibration and rotation sensor
   PORTD |= (1<<2);
-  LED_BRIGHT;
+  //LED_BRIGHT;
   set_number(7);
-  _delay_ms(1000);
+  //_delay_ms(1000);
   configure_interrupt();
-  LED_DIMMED;
+  if (bright==1) { LED_DIMMED; }
   for (;;) {
     if (dice_number < 6) ++dice_number; //Increment the official number
     else dice_number=1;
