@@ -49,7 +49,9 @@ void set_led(uint8_t led) {
 
 set_number(uint8_t number) {
   PORTD &=~ (1<<0);
-  if (number==1)
+  if (number==0) {
+    PORTC=0;
+  } else if (number==1)
     PORTC = 4;
   else if (number==2)
     PORTC = 10;
